@@ -1,0 +1,76 @@
+[setup]
+CPUS = 4
+GPUS = 1
+PIPE_CLI = 1
+SOFTWARE = 1
+TILTAXIS = -87
+USER_DB_ID = 1
+
+[setup.data]
+FRAMES_NAME = "Fractions"
+GAIN_PATH = false
+MDOC_DUPLICATE = "override"
+RAW_DATA_DIR = "/cloud-data/its-cmo-darwin-magellan-workspaces-folders/WS_Cryoem/CX_LMR/Project_directories/cryo-et-test"
+READ_MDOC = 1
+TRANFER_RAW_DATA = 0
+
+[data]
+EXPOSURE = 2.34
+EXTENSION = "*.mrc"
+PIXEL_SIZE = 1.98
+
+[mc] # Motion correction
+DOSE_FRACTIONS = 1
+DO_MC_DOSEWEIGHT = 0
+DROP_MEAN = 100
+RUN_FRAMEWATCHER = 1
+
+[imod]
+PREALIGN_BIN = 4
+REMOVE_XRAYS = 1
+
+[imod.tracking]
+SIZE_GOLD = 0
+TRACK_METHOD = 1
+
+[imod.tracking.fiducial]
+NUM_BEADS = 25 # Number of beads to seed automatically. 25 should be more than enough.
+SOBEL_SIGMA = 1.5 # Sigma for sobel filter in binned pixels. Set to 1.5 for cryo data
+USE_SOBEL = 1 # Use the sobel filter to find center of beads. This should be used for cryo data
+
+[imod.tracking.patch]
+PATCH_OVERLAP_X = 0.4 # Fraction overlap of patches in X
+PATCH_OVERLAP_Y = 0.4 # Fraction overlap of patches in Y
+PATCH_SIZE_X = 200 # Size of patch in X (pixels)
+PATCH_SIZE_Y = 200 # Size of patch in Y (pixels)
+
+[imod.final_alignment]
+DO_CTF = 1 
+DO_DOSE_WEIGHTING = 0 
+FINAL_BIN = 4 # Bin factor for the output tomogram
+
+[imod.ctf]
+AUTOFIT_RANGE = 12
+AUTOFIT_STEP = 1
+CS = 2.7
+DEFOCUS_RANGE_HIGH = 10000.0
+DEFOCUS_RANGE_LOW = 1000.0
+TUNE_FITTING_SAMPLING = 1
+VOLTAGE = 200
+
+[imod.dose_weight]
+DOSE_SYM = 0
+
+[imod.reconstruction]
+FAKE_SIRT_ITERS = 10
+RECONSTRUCT_METHOD = 1
+SIRT_ITERS = 10
+THICKNESS_BINNED = false
+THICKNESS_UNBINNED = 1200
+
+[imod.postprocess]
+DO_TRIMVOL = 1
+REORIENT = 2
+
+[denoise]
+DO_DENOISING = 1

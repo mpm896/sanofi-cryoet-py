@@ -5,39 +5,47 @@
 # This script will be passed the data processing parameters by the main shell script 
 
 from __future__ import annotations
-import contextlib
-import os
+from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 import subprocess
-import time
 import tomllib
-from typing import Any, Generator
 
-from .const import CONFIG_ARGS
-from .utils import chdir, get_mdoc, read_mdoc
+from .const import CONFIG_ARGS, PROC_DIR
+from .utils import chdir, get_one_mdoc, read_mdoc, typewriter
 
-
+@dataclass
 class Config:
-    """ Cryo-ET Configuration Object """
+    """ Cryo-ET pipeline configuration object """
+    setup: dict
+    data: dict
+    mc: dict
+    imod: dict
+    denoise: dict
+    dirs: ConfigDirs = field(init=False)
+
+    def __post_init__(self):
+        data_dir = Path(self.setup['data']['RAW_DATA_DIR'].split('/')[-1])
+        out_dir = Path(PROC_DIR)
+        self.dirs = ConfigDirs(
+            DATA_DIR=data_dir,
+            SUBFRAME_DIR=Path(data_dir / 'Frames'),
+            OUT_DIR=out_dir,
+            WATCH_DIR=data_dir,  # Redundant
+            PROC_DIR=Path(data_dir / 'Processed'),
+            THUMB_DIR=Path(out_dir / 'alignedJPG'),
+        )
+
     
     @classmethod
     def from_toml(cls, toml: Path) -> Config:
-        assert toml.exists()
-
-        ret = cls()  # Instantiate the object
         with open(toml, "rb") as f:
             data = tomllib.load(f)
-        
         status = cls._validate(data)
         if status[0] != 0:
             raise ValueError(f"Invalid entries in the config TOML. The following entries must be specified: {status[1]}")
-        
-        # Add the attributes to the class
-        for k, v in data.items():
-            setattr(ret, k, v)
-        return ret
-    
+        return cls(**data)
+
 
     @staticmethod
     def _validate(data: dict) -> tuple[int, list[str]]:
@@ -71,137 +79,114 @@ class Config:
         return 0, errors
 
 
-def setup_serieswatcher(**kwargs) -> tuple[Path, Path]:
+@dataclass
+class ConfigDirs:
+    DATA_DIR: Path
+    SUBFRAME_DIR: Path
+    OUT_DIR: Path
+    WATCH_DIR: Path
+    PROC_DIR: Path
+    THUMB_DIR: Path
+
+
+def setup_serieswatcher(config: Config) -> tuple[Path, Path]:
     """
     Construct the COM and ADOC files to to run serieswatcher
 
-    :param: **kwargs
-        Pipeline arguments passed from shell script
+    :param: config
+        Config containing tipeline arguments passed from the config TOML
 
     :return: tuple of files
         master com file, master adoc file
     """
-    assert 'cpus' in kwargs
-    assert 'gpus' in kwargs
-    assert 'out_dir' in kwargs
-    assert 'remove_xrays' in kwargs
-    assert 'read_mdoc' in kwargs
-    assert 'remove_xrays' in kwargs
-    assert 'prealign_bin' in kwargs
-    assert 'track_method' in kwargs
-    assert 'size_gold' in kwargs
-    assert 'final_bin' in kwargs
-    assert 'do_sirt' in kwargs
-    assert 'do_trimvol' in kwargs
-    assert 'pixel_size' in kwargs
-    assert 'tiltaxis' in kwargs
-    assert 'dose_sym' in kwargs
-    assert 'voltage' in kwargs
-    assert 'cs' in kwargs
-    assert 'reorient' in kwargs
-    assert 'thickness_binned' in kwargs
-    assert 'thickness_unbinned' in kwargs
-    assert 'use_sobel' in kwargs
-    assert 'num_beads' in kwargs
-    assert 'sobel_sigma' in kwargs
-    assert 'patch_size' in kwargs
-    assert 'patch_overlap' in kwargs
-    assert 'do_ctf' in kwargs
-    assert 'defocus_range'  in kwargs
-    assert 'autofit_range'  in kwargs
-    assert 'autofit_step' in kwargs
-    assert 'tune_fitting_sample' in kwargs
-    assert 'fake_sirt_iters' in kwargs
-
     # Get those parameters which can be read from the mdoc - pixel size, exposure, tilt angles
-    mdoc_info = read_mdoc(get_mdoc(kwargs['out_dir']))
+    mdoc_info = read_mdoc(get_one_mdoc(config.dirs.OUT_DIR))
 
     master_com = Path.cwd() / Path('coms/BRT_MASTER.com')
     master_com.parent.mkdir(parents=True, exist_ok=True)
     master_adoc = Path.cwd() / Path('coms/BRT_MASTER.adoc')
     master_adoc.parent.mkdir(parents=True, exist_ok=True)
 
-    if kwargs['pixel_size'] == "EMPTY":
-        kwargs['pixel_size'] == mdoc_info['Pixel Size']
-    if kwargs['thickness_binned'] != "EMPTY":
-        kwargs['thickness_unbinned'] = str(
-            int(kwargs['thickness_binned']) * int(kwargs['final_bin'])
-        )
+    if not config.data['PIXEL_SIZE']:
+        config.data['PIXEL_SIZE'] == mdoc_info['Pixel Size']
+    if config.imod['reconstruction']['THICKNESS_BINNED']:
+        config.imod['reconstruction']['THICKNESS_UNBINNED'] = config.imod['reconstruction']['THICKNESS_BINNED'] * config.imod['final_alignment']['FINAL_BIN']
+    do_sirt = 1 if config.imod['RECONSTRUCT_METHOD'] == 2 else 0
 
     # Construct the com file
     master_com.write_text(
         '$batchruntomo -StandardInput\n'
         'NamingStyle     1\n'
         'MakeSubDirectory\n'
-        f'CPUMachineList  localhost:{kwargs["cpus"]}\n'
-        f'GPUMachineList  {kwargs["gpus"]}\n'
+        f'CPUMachineList  localhost:{config.setup["CPUS"]}\n'
+        f'GPUMachineList  {config.setup["GPUS"]}\n'
         'NiceValue       15\n'
         'EtomoDebug      0\n'
         f'DirectiveFile   {master_adoc}\n'
-        f'CurrentLocation {kwargs["out_dir"]}\n'
+        f'CurrentLocation {config.dirs.OUT_DIR}\n'
         'BypassEtomo\n'
     )
     
     # Construct the adoc file
     master_adoc.write_text(
         'setupset.systemTemplate = /usr/local/IMOD/SystemTemplate/cryoSample.adoc\n'
-        f'runtime.Preprocessing.any.removeXrays = {kwargs["remove_xrays"]}\n'
-        f'comparam.prenewst.newstack.BinByFactor = {kwargs["prealign_bin"]}\n'
-        f'runtime.Fiducials.any.trackingMethod = {kwargs["track_method"]}\n'
-        f'setupset.copyarg.gold = {kwargs["size_gold"]}\n'
-        f'runtime.AlignedStack.any.binByFactor = {kwargs["final_bin"]}\n'
-        f'runtime.Reconstruction.any.useSirt = {kwargs["do_sirt"]}\n'
+        f'runtime.Preprocessing.any.removeXrays = {config.imod['REMOVE_XRAYS']}\n'
+        f'comparam.prenewst.newstack.BinByFactor = {config.imod['PREALIGN_BIN']}\n'
+        f'runtime.Fiducials.any.trackingMethod = {config.imod['tracking']['TRACK_METHOD']}\n'
+        f'setupset.copyarg.gold = {config.imod['tracking']['SIZE_GOLD']}\n'
+        f'runtime.AlignedStack.any.binByFactor = {config.imod['final_alignment']['FINAL_BIN']}\n'
+        f'runtime.Reconstruction.any.useSirt = {do_sirt}\n'
         'runtime.Trimvol.any.scaleFromZ = \n'
-        f'runtime.Postprocess.any.doTrimvol = {kwargs["do_trimvol"]}\n'
-        f'setupset.copyarg.pixel = {kwargs["pixel_size"]}\n'
-        f'setupset.copyarg.rotation = {kwargs["tiltaxis"]}\n'
-        f'setupset.copyarg.dosesym = {kwargs["dose_sym"]}\n'
-        f'setupset.copyarg.voltage = {kwargs["voltage"]}\n'
-        f'setupset.copyarg.Cs = {kwargs["cs"]}\n'
+        f'runtime.Postprocess.any.doTrimvol = {config.imod['postprocess']['DO_TRIMVOL']}\n'
+        f'setupset.copyarg.pixel = {config.data['PIXEL_SIZE']}\n'
+        f'setupset.copyarg.rotation = {config.setup['TILTAXIS']}\n'
+        f'setupset.copyarg.dosesym = {config.imod['dose_weight']['DOSE_SYM']}\n'
+        f'setupset.copyarg.voltage = {config.imod['ctf']['VOLTAGE']}\n'
+        f'setupset.copyarg.Cs = {config.imod['ctf']['CS']}\n'
         'comparam.prenewst.newstack.AntialiasFilter = 4\n'
         'comparam.newst.newstack.AntialiasFilter = 4\n'
-        f'runtime.Trimvol.any.reorient = {kwargs["reorient"]}\n'
-        f'comparam.tilt.tilt.THICKNESS = {kwargs["thickness_unbinned"]}\n'
+        f'runtime.Trimvol.any.reorient = {config.imod['postprocess']['REORIENT']}\n'
+        f'comparam.tilt.tilt.THICKNESS = {config.imod['reconstruction']['THICKNESS_UNBINNED']}\n'
     )
 
-    if int(kwargs['track_method']) == 0:
+    if config.imod['tracking']['TRACK_METHOD'] == 0:
         # Fiducial tracking
         with master_adoc.open("a") as f:
             f.write(
                 'runtime.Fiducials.any.seedingMethod = 1\n'
-                f'comparam.track.beadtrack.SobelFilterCentering = {kwargs["use_sobel"]}\n'
-                f'comparam.autofidseed.autofidseed.TargetNumberOfBeads = {kwargs["num_beads"]}\n'
+                f'comparam.track.beadtrack.SobelFilterCentering = {config.imod['tracking']['fiducial']['USE_SOBEL']}\n'
+                f'comparam.autofidseed.autofidseed.TargetNumberOfBeads = {config.imod['tracking']['fiducial']['NUM_BEADS']}\n'
             )
         
-        if int(kwargs['use_sobel']) == 1:
+        if int(config.imod['tracking']['fiducial']['USE_SOBEL']) == 1:
             with master_adoc.open("a") as f:
                 f.write(
-                    f'comparam.track.beadtrack.KernelSigmaForSobel = {kwargs["sobel_sigma"]}\n'
+                    f'comparam.track.beadtrack.KernelSigmaForSobel = {config.imod['tracking']['fiducial']['SOBEL_SIGMA']}\n'
                 )
-    elif int(kwargs['track_method']) == 1:
+    elif config.imod['tracking']['TRACK_METHOD'] == 1:
         # Patch tracking
         with master_adoc.open("a") as f:
             f.write(
-                f'comparam.xcorr_pt.tiltxcorr.SizeOfPatchesXandY = {kwargs["patch_size"][0]},{kwargs["patch_size"][1]}\n'
-                f'comparam.xcorr_pt.tiltxcorr.OverlapOfPatchesXandY = {kwargs["patch_overlap"][0]},{kwargs["patch_overlap"][1]}\n'
+                f'comparam.xcorr_pt.tiltxcorr.SizeOfPatchesXandY = {config.imod['tracking']['patch']['PATCH_SIZE_X']},{config.imod['tracking']['patch']['PATCH_SIZE_Y']}\n'
+                f'comparam.xcorr_pt.tiltxcorr.OverlapOfPatchesXandY = {config.imod['tracking']['patch']['PATCH_OVERLAP_X']},{config.imod['tracking']['patch']['PATCH_OVERLAP_Y']}\n'
             )
     else:
-        raise ValueError(f"Tracking method of {kwargs['track_method']} is not supported")
+        raise ValueError(f"Tracking method of {config.imod['tracking']['TRACK_METHOD']} is not supported")
     
-    if int(kwargs['do_ctf']) == 1:
+    if config.imod['final_alignment']['DO_CTF'] == 1:
         with master_adoc.open("a") as f:
             f.write(
-                f'runtime.AlignedStack.any.correctCTF = {kwargs["do_ctf"]}\n'
-                f'comparam.ctfplotter.ctfplotter.ScanDefocusRange = {kwargs["defocus_range"][0]},{kwargs["defocus_range"][1]}\n'
-                f'runtime.CTFplotting.any.autoFitRangeAndStep = {kwargs["autofit_range"]},{kwargs["autofit_step"]}\n'
+                f'runtime.AlignedStack.any.correctCTF = {config.imod['final_alignment']['DO_CTF']}\n'
+                f'comparam.ctfplotter.ctfplotter.ScanDefocusRange = {config.imod['ctf']['DEFOCUS_RANGE_LOW']},{config.imod['ctf']['DEFOCUS_RANGE_HIGH']}\n'
+                f'runtime.CTFplotting.any.autoFitRangeAndStep = {config.imod['ctf']['AUTOFIT_RANGE']},{config.imod['ctf']['AUTOFIT_STEP']}\n'
                 'comparam.ctfplotter.ctfplotter.BaselineFittingOrder = 4\n'
                 'comparam.ctfplotter.ctfplotter.SearchAstigmatism = 1\n'
             )
 
-    if int(kwargs['do_sirt']) == 0:
+    if do_sirt == 0:
         with master_adoc.open("a") as f:
             f.write(
-                f'comparam.tilt.tilt.FakeSIRTiterations = {kwargs["fake_sirt_iters"]}'
+                f'comparam.tilt.tilt.FakeSIRTiterations = {config.imod['reconstruction']['FAKE_SIRT_ITERS']}'
             )
             
     return master_com, master_adoc

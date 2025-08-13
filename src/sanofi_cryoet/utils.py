@@ -4,8 +4,6 @@
 # Helper functions
 
 import contextlib
-import curses
-from itertools import zip_longest
 import os
 from pathlib import Path
 import sys
@@ -24,7 +22,7 @@ def chdir(path: str | Path) -> Generator[None, None, None]:
         os.chdir(prev_cwd)
 
          
-def typewriter(strings: list[str], delay=0.05):
+def typewriter(strings: list[str], delay=0.02) -> None:
     max_length = max(len(s) for s in strings)
 
     # Print empty lines for each string (to reserve space)
@@ -42,7 +40,7 @@ def typewriter(strings: list[str], delay=0.05):
 
 
 
-def get_mdoc(p: Path) -> Path:
+def get_one_mdoc(p: Path) -> Path:
     """ Get mdoc files for each processing directory """
     while True: 
         mdocs = [x for x in list(p.rglob('*.mdoc'))]
@@ -69,7 +67,10 @@ def read_mdoc(mdoc: Path) -> dict[str, any]:
         "tilt increment": [int] tilt increment
     }
     """
-    assert mdoc.exists()
+    if not mdoc.exists():
+        raise FileNotFoundError
+
+    # TODO - get tilt axis from the mdoc
 
     header_info = {}
     # Open each file and extract the relevant information

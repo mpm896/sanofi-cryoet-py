@@ -1,18 +1,20 @@
+# REQUIRED
 [setup]
-CPUS = 4
+CPUS = 8
 GPUS = 1
 PIPE_CLI = 1
-SOFTWARE = 1
+SOFTWARE = 0
 TILTAXIS = -87
 USER_DB_ID = 1
 
+# REQUIRED
 [setup.data]
 FRAMES_NAME = "Fractions"
 GAIN_PATH = false
 MDOC_DUPLICATE = "override"
 RAW_DATA_DIR = "/cloud-data/its-cmo-darwin-magellan-workspaces-folders/WS_Cryoem/CX_LMR/Project_directories/cryo-et-test"
 READ_MDOC = 1
-TRANFER_RAW_DATA = 0
+TRANSFER_RAW_DATA = 1
 
 [data]
 EXPOSURE = 2.34
@@ -33,11 +35,13 @@ REMOVE_XRAYS = 1
 SIZE_GOLD = 0
 TRACK_METHOD = 1
 
+# REQUIRED if doing fiducial tracking and alignment
 [imod.tracking.fiducial]
 NUM_BEADS = 25 # Number of beads to seed automatically. 25 should be more than enough.
-SOBEL_SIGMA = 1.5 # Sigma for sobel filter in binned pixels. Set to 1.5 for cryo data
+SOBEL_SIGMA = 0.12 # Sigma for sobel filter relative to fiducial size. 0.12 is good for cryo data
 USE_SOBEL = 1 # Use the sobel filter to find center of beads. This should be used for cryo data
 
+# REQUIRED if doing patch tracking
 [imod.tracking.patch]
 PATCH_OVERLAP_X = 0.4 # Fraction overlap of patches in X
 PATCH_OVERLAP_Y = 0.4 # Fraction overlap of patches in Y
@@ -49,6 +53,7 @@ DO_CTF = 1
 DO_DOSE_WEIGHTING = 0 
 FINAL_BIN = 4 # Bin factor for the output tomogram
 
+# REQUIRED if doing CTF
 [imod.ctf]
 AUTOFIT_RANGE = 12
 AUTOFIT_STEP = 1
@@ -63,7 +68,7 @@ DOSE_SYM = 0
 
 [imod.reconstruction]
 FAKE_SIRT_ITERS = 10
-RECONSTRUCT_METHOD = 1
+RECONSTRUCT_METHOD = 1  # 0 - R-weighted back projection; 1 - R-weightd bpj + SIRT-like filter; 2 - SIRT reconstruction
 SIRT_ITERS = 10
 THICKNESS_BINNED = false
 THICKNESS_UNBINNED = 1200

@@ -14,9 +14,7 @@ from typing import Optional
 
 import polars as pl
 
-DB_DIR = "/root/cloud-data/its-cmo-darwin-magellan-workspaces-folders/WS_Cryoem/CX_LMR/Project_directories/cryo-et-data"
-ID_DB = "/root/cloud-data/its-cmo-darwin-magellan-workspaces-folders/WS_Cryoem/CX_LMR/Project_directories/cryo-et-pipeline/ids.csv"
-TIMEOUT = 3600  # Time until time out, in seconds
+from .const import ID_DB, DB_DIR, TIMEOUT
 
 logging.basicConfig(
     level=logging.INFO,

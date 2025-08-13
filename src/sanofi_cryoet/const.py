@@ -13,7 +13,7 @@ GPU = 0  # Number GPU device - 0 for best
 
 CONFIG_ARGS = {
     'setup': ['CPUS', 'GPUS', 'PIPE_CLI', 'SOFTWARE', 'TILTAXIS', 'USER_DB_ID'],
-    'setup_data': ['FRAMES_NAME', 'GAIN_PATH', 'MDOC_DUPLICATE', 'RAW_DATA_DIR', 'READ_MDOC', 'TRANFER_RAW_DATA',],
+    'setup_data': ['FRAMES_NAME', 'GAIN_PATH', 'MDOC_DUPLICATE', 'RAW_DATA_DIR', 'READ_MDOC', 'TRANSFER_RAW_DATA',],
     'data': ['EXPOSURE', 'EXTENSION', 'PIXEL_SIZE'],
     'mc': ['DOSE_FRACTIONS', 'DO_MC_DOSEWEIGHT', 'DROP_MEAN', 'RUN_FRAMEWATCHER'],
     'imod': ['PREALIGN_BIN', 'REMOVE_XRAYS'],

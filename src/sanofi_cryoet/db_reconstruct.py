@@ -192,6 +192,11 @@ def setup_serieswatcher(config: Config) -> tuple[Path, Path]:
     return master_com, master_adoc
 
 
+def setup_framewatcher(config: Config) -> tuple[Path]:
+    """ Setup COM file for IMOD framewatcher """    
+    pass
+
+
 
 
     

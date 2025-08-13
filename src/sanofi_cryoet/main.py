@@ -19,7 +19,7 @@ import pprint
 import tomllib
 
 from .const import DB_DIR, ID_DB, PROC_DIR, TIMEOUT, EXT, BIN, GPU
-from .db_reconstruct import Config, setup_serieswatcher
+from .db_reconstruct import Config, setup_serieswatcher, setup_framewatcher
 from .db_transfer import CryoETDB
 from .utils import typewriter
 
